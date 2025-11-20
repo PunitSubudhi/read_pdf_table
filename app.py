@@ -33,7 +33,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-def parse_pdf_file(uploaded_file):
+def parse_pdf_file(uploaded_file, progress_bar=None, status_text=None):
     """Parse a single PDF file and return extracted data."""
     try:
         # Save uploaded file to temporary location
@@ -41,8 +41,14 @@ def parse_pdf_file(uploaded_file):
             tmp_file.write(uploaded_file.getvalue())
             tmp_path = tmp_file.name
 
-        # Parse the PDF
-        parser = BankStatementParser(tmp_path)
+        # Create progress callback for Streamlit
+        def update_progress(current, total):
+            if progress_bar and status_text:
+                progress = current / total
+                status_text.text(f"Processing {uploaded_file.name} - {int(progress * 100)}% complete")
+        
+        # Parse the PDF with progress tracking
+        parser = BankStatementParser(tmp_path, progress_callback=update_progress)
         metadata, transactions, totals, legends = parser.parse()
 
         # Clean up temp file
@@ -208,7 +214,7 @@ def main():
 
             for idx, uploaded_file in enumerate(uploaded_files):
                 status_text.text(f"Processing {uploaded_file.name}...")
-                result = parse_pdf_file(uploaded_file)
+                result = parse_pdf_file(uploaded_file, progress_bar, status_text)
                 st.session_state.processed_results.append(result)
                 progress_bar.progress((idx + 1) / len(uploaded_files))
 
@@ -245,7 +251,6 @@ def main():
             with col4:
                 st.metric("Total Deposits", f"₹{summary['deposits']:,.2f}")
             with col5:
-                delta_color = "normal" if summary['net_change'] >= 0 else "inverse"
                 st.metric("Net Change", f"₹{summary['net_change']:,.2f}")
 
             st.markdown("---")
